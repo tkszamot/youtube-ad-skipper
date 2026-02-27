@@ -3,8 +3,16 @@ YouTube Ad Skipper - automatyczne pomijanie reklam na YouTube
 Wymagania: pip install selenium webdriver-manager
 
 Uruchomienie:
-    python youtube_ad_skipper.py
+    1. Uruchom cmd w Windows, tryb admina
+    2. Jesli nie posiadasz jeszcze zainstalowanej biblioteki ktora program wymaga
+        wykonaj instalacje bibliotek jeden raz :
+        "pip install selenium webdriver-manager"
+    3. Uruchom program w zapisanej lokalizacji : 
+    "python youtube_ad_skipper.py"
+    - jesli chcesz uruchomic z odpowiednim filmem :
     python youtube_ad_skipper.py --url "https://www.youtube.com/watch?v=XXXX"
+
+    Uruchomi sie osobne okno chrome. Dalej wystarczy juz tylko ogladac :)
 """
 
 import time
