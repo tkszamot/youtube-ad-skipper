@@ -2,6 +2,7 @@
 
 Skrypt w Pythonie automatycznie pomijający reklamy na YouTube.  
 Otwiera Chrome z trwałym profilem, dzięki czemu logujesz się tylko raz.
+Skrypt należy uruchomic poprzez okno cmd uruchomione w trybie admin. 
 
 ## Jak działa
 
