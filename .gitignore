@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+venv/
+env/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# WebDriver cache (pobierany automatycznie)
+.wdm/
+
+# Profil Chrome (dane osobiste – nie commitujemy!)
+# C:\Users\...\AppData\Local\YTSkipper  ← jest poza repo, więc OK
