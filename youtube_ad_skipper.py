@@ -20,6 +20,7 @@ import argparse
 import logging
 import subprocess
 import os
+import shutil
 
 try:
     from selenium import webdriver
@@ -42,17 +43,13 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 
-# Selektory przycisku "Pomiń reklamę" (tylko konkretne klasy, bez wildcard)
+# Selektory przycisku "Pomiń reklamę"
 SKIP_BUTTON_SELECTORS = [
     ".ytp-ad-skip-button-modern",
     ".ytp-ad-skip-button",
     ".ytp-skip-ad-button",
 ]
 
-
-import shutil
-
-# ... (rest of imports)
 
 def find_chrome_executable():
     """Próbuje znaleźć ścieżkę do pliku wykonywalnego Chrome."""
@@ -61,36 +58,45 @@ def find_chrome_executable():
         r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
         os.path.expandvars(r"%LocalAppData%\Google\Chrome\Application\chrome.exe"),
     ]
-    
+
     for path in common_paths:
         if os.path.exists(path):
             return path
-            
-    # Spróbuj znaleźć w PATH
+
     path_from_shutil = shutil.which("chrome") or shutil.which("google-chrome")
     if path_from_shutil:
         return path_from_shutil
-        
+
     return None
 
-# Stały profil – dane logowania są zapamiętywane między sesjami
-PROFILE_DIR = r"C:\Users\-\AppData\Local\YTSkipper"
+
+# Osobny profil dla skryptu – nie miesza się z normalnym Chrome
+PROFILE_DIR = os.path.join(os.environ["LOCALAPPDATA"], "YTSkipper")
 CHROME_EXE = find_chrome_executable()
 DEBUG_PORT = 9222
 
 
 def launch_chrome() -> subprocess.Popen:
-    """Uruchamia Chrome normalnie (bez automatyzacji) z włączonym remote debugging."""
+    """Uruchamia nowe okno Chrome z włączonym remote debugging.
+    Używa osobnego profilu (PROFILE_DIR) aby działać jako osobny proces
+    nawet gdy inny Chrome jest już otwarty."""
     if not CHROME_EXE or not os.path.exists(CHROME_EXE):
-        raise FileNotFoundError(f"Nie znaleziono Chrome. Upewnij się, że jest zainstalowany.")
-    return subprocess.Popen([
+        raise FileNotFoundError("Nie znaleziono Chrome. Upewnij się, że jest zainstalowany.")
+
+    log.info(f"Uruchamiam nowe okno Chrome z remote debugging na porcie {DEBUG_PORT}...")
+    proc = subprocess.Popen([
         CHROME_EXE,
         f"--remote-debugging-port={DEBUG_PORT}",
         f"--user-data-dir={PROFILE_DIR}",
         "--no-first-run",
         "--no-default-browser-check",
+        "--new-window",
         "https://www.youtube.com",
     ])
+
+    log.info("Czekam na uruchomienie Chrome...")
+    time.sleep(4)
+    return proc
 
 
 def connect_driver() -> webdriver.Chrome:
@@ -98,7 +104,19 @@ def connect_driver() -> webdriver.Chrome:
     options = Options()
     options.add_experimental_option("debuggerAddress", f"127.0.0.1:{DEBUG_PORT}")
     service = Service(ChromeDriverManager().install())
-    return webdriver.Chrome(service=service, options=options)
+
+    last_error = None
+    for i in range(15):
+        try:
+            driver = webdriver.Chrome(service=service, options=options)
+            log.info("Polaczono z Chrome!")
+            return driver
+        except Exception as e:
+            last_error = e
+            log.info(f"Czekam na Chrome... ({i + 1}/15)")
+            time.sleep(1)
+
+    raise RuntimeError(f"Nie udalo sie polaczyc z Chrome po 15 probach.\nOstatni blad: {last_error}")
 
 
 def try_click_skip_button(driver) -> bool:
@@ -107,17 +125,14 @@ def try_click_skip_button(driver) -> bool:
         try:
             buttons = driver.find_elements(By.CSS_SELECTOR, selector)
             for btn in buttons:
-                # Sprawdź czy przycisk ma rozmiar > 0 (faktycznie widoczny)
                 size = btn.size
                 if btn.is_displayed() and btn.is_enabled() and size["width"] > 0 and size["height"] > 0:
                     try:
-                        # Najpierw spróbuj prawdziwy klik (ActionChains)
                         ActionChains(driver).move_to_element(btn).click().perform()
                     except Exception:
-                        # Fallback: bezpośredni .click()
                         btn.click()
-                    log.info(f"✅ Kliknięto 'Pomiń reklamę' (selektor: {selector})")
-                    time.sleep(2)  # daj YouTube czas na przetworzenie kliknięcia
+                    log.info(f"Kliknieto 'Pomin reklame' (selektor: {selector})")
+                    time.sleep(2)
                     return True
         except Exception:
             continue
@@ -125,7 +140,7 @@ def try_click_skip_button(driver) -> bool:
 
 
 def is_ad_playing(driver) -> bool:
-    """Sprawdza czy aktualnie gra reklama – tylko przez klasy playera (najbardziej wiarygodne)."""
+    """Sprawdza czy aktualnie gra reklama."""
     try:
         player = driver.find_element(By.ID, "movie_player")
         classes = player.get_attribute("class") or ""
@@ -157,26 +172,23 @@ def unmute(driver):
 
 
 def watch_for_ads(driver, check_interval: float = 0.8):
-    """
-    Główna pętla monitorowania – działa w tle i pomija reklamy.
-    Przerwij przez Ctrl+C.
-    """
-    log.info("🎬 Monitorowanie reklam aktywne. Wciśnij Ctrl+C aby zatrzymać.\n")
+    """Główna pętla monitorowania. Przerwij przez Ctrl+C."""
+    log.info("Monitorowanie reklam aktywne. Wcisnij Ctrl+C aby zatrzymac.\n")
     ad_was_playing = False
 
     while True:
         try:
             if is_ad_playing(driver):
                 if not ad_was_playing:
-                    log.info("📢 Wykryto reklamę...")
+                    log.info("Wykryto reklame...")
                     ad_was_playing = True
 
                 skipped = try_click_skip_button(driver)
                 if not skipped:
-                    mute_ad(driver)  # wycisz jeśli nie można pominąć
+                    mute_ad(driver)
             else:
                 if ad_was_playing:
-                    log.info("✔️  Reklama zakończona, przywracam dźwięk.")
+                    log.info("Reklama zakonczona, przywracam dzwiek.")
                     unmute(driver)
                     ad_was_playing = False
 
@@ -184,13 +196,13 @@ def watch_for_ads(driver, check_interval: float = 0.8):
 
         except WebDriverException as e:
             if "no such window" in str(e).lower():
-                log.info("Okno przeglądarki zostało zamknięte. Kończę.")
+                log.info("Okno przegladarki zostalo zamkniete. Koncze.")
                 break
             log.warning(f"WebDriver error: {e}")
             time.sleep(2)
 
         except KeyboardInterrupt:
-            log.info("\nZatrzymano przez użytkownika.")
+            log.info("\nZatrzymano przez uzytkownika.")
             break
 
 
@@ -200,32 +212,31 @@ def main():
         "--interval",
         type=float,
         default=0.8,
-        help="Częstotliwość sprawdzania w sekundach (domyślnie: 0.8)"
+        help="Czestotliwosc sprawdzania w sekundach (domyslnie: 0.8)"
     )
     args = parser.parse_args()
 
-    log.info("🚀 Uruchamianie YouTube Ad Skipper...")
-    log.info("🌐 Otwieram Chrome...")
+    log.info("Uruchamianie YouTube Ad Skipper...")
+    log.info("Otwieram Chrome...")
     chrome_proc = launch_chrome()
 
     print()
     print("=" * 55)
-    print("  Zaloguj się do YouTube w otwartym oknie Chrome.")
-    print("  (Jeśli jesteś już zalogowany, możesz pominąć ten krok)")
+    print("  Zaloguj sie do YouTube w otwartym oknie Chrome.")
+    print("  (Jesli jestes juz zalogowany, mozesz pominac ten krok)")
     print()
-    input("  Naciśnij ENTER gdy będziesz gotowy do monitorowania...")
+    input("  Nacisnij ENTER gdy bedziesz gotowy do monitorowania...")
     print("=" * 55)
     print()
 
-    log.info("🔌 Podłączam do przeglądarki...")
-    time.sleep(1)
+    log.info("Podlaczam do przegladarki...")
+    time.sleep(3)
     driver = connect_driver()
 
     try:
-        log.info("ℹ️  Przejdź do wybranego filmu lub playlisty.\n")
+        log.info("Przejdz do wybranego filmu lub playlisty.\n")
         watch_for_ads(driver, check_interval=args.interval)
     finally:
-        # Nie zamykamy Chrome przez driver.quit() – tylko odłączamy Selenium
         try:
             driver.service.stop()
         except Exception:
@@ -235,3 +246,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    
