@@ -13,6 +13,13 @@ Skrypt należy uruchomic poprzez okno cmd uruchomione w trybie admin.
 4. Gdy pojawi się reklama z przyciskiem „Pomiń" — klika automatycznie
 5. Gdy reklamy nie da się pominąć — wycisza ją i przywraca dźwięk po jej zakończeniu
 
+## Plik youtube_ad_skipper.pyw - okienkowa wersja
+To ten sam skrypt w wersji okienkowej. 
+Dodawno opcje wyboru czy podczas wycinania reklam i w czasie oczekiwania 
+na przycisk POMIN wylaczac dzwiek. Przycisk start uruchamia przegladarke 
+z strona YouTube. Samo dzialanie skryptu jest identyczne jak poprzedniej wersji. 
+
+
 ## Wymagania
 
 - Python 3.9+
