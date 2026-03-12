@@ -1,9 +1,13 @@
 """
 YouTube Ad Skipper - automatyczne pomijanie reklam na YouTube
-Wymagania: pip install selenium webdriver-manager
+Wymagania: pip install selenium webdriver-manager.
+
+Opis: Okienkowa wersja tego samego programu co wczesniej pod nazwa 
+"youtube_ad_skipper.py" .
+Dodano opcje wyciszanmia dzwieku podczas trwania reklamy. 
 
 Uruchomienie:
-    python youtube_ad_skipper.py
+    dwuklik w windows w youtube_ad_skipper.pyw
 """
 
 import time
